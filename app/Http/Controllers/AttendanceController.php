@@ -12,51 +12,78 @@ use Illuminate\Support\Facades\Auth;
 
 class AttendanceController extends Controller
 {
-    public function index(Request $request)
-    {
-        // Fetch students or any necessary data
-        $teacherId = auth()->user()->id;
-        $subjectId = $request->input('subject_id');
 
-        $students = Student::where('user_id', $teacherId)->orderBy('id')->get();
+public function index(Request $request)
+{
+    // Fetch the subject ID from the request
+    $subjectId = $request->get('subject_id');
+    
+    // Fetch the section ID from the request
+    $sectionId = $request->get('section_id');
+    
+    // Fetch the student ID from the request
+    $studentId = $request->get('student_id');
+    
+    // Retrieve the subject name for the title
+    $subject = Subject::find($subjectId);
+    $subjectName = $subject ? $subject->name : 'Unknown Subject';
 
-        $enrolledStudents = ClassCard::with('student', 'subject')
-            ->where('subject_id', $subjectId)
-            ->whereHas('student', function ($query) use ($teacherId) {
-                $query->where('user_id', $teacherId);
-            })
-            ->get();
-
-        // If no enrolled students are found, redirect back with an error message
-        if ($enrolledStudents->isEmpty()) {
-            return redirect()->back()->with('error', 'There are no enrolled students for this subject yet.');
-        }
-
-        $student_id = $request->input('student_id') ?? $enrolledStudents[0]->student->id;
-
-        $student = $students->find($student_id);
-        if (!$student) {
-            return redirect()->route('class-card.index')->with('error', 'Student not found.');
-        }
-
-        // Get all student IDs that belong to the teacher
-        $studentIds = $enrolledStudents->pluck('student.id')->toArray();
-
-        $subjectName = Subject::find($subjectId)->name;
-
-        $sections = Section::where('user_id', $teacherId)->get();
-
-        // Determine previous and next student IDs
-        $currentIndex = array_search($student_id, $studentIds);
-        $prevStudentId = $currentIndex > 0 ? $studentIds[$currentIndex - 1] : null;
-        $nextStudentId = $currentIndex < count($studentIds) - 1 ? $studentIds[$currentIndex + 1] : null;
-
-        // Fetch attendance records for the student
-        $attendanceRecords = Attendance::where('student_id', $student_id)->where('type', 1)->get(); // For lectures
-        $labAttendanceRecords = Attendance::where('student_id', $student_id)->where('type', 2)->get(); // For labs
-
-        return view('attendance.index', compact('student', 'enrolledStudents', 'prevStudentId', 'nextStudentId', 'attendanceRecords', 'labAttendanceRecords', 'sections', 'subjectId', 'subjectName', 'studentIds'));
+    // Fetch the section data, if a section is selected
+    $sections = Section::all();
+    
+    // Fetch the enrolled students for the subject
+    $enrolledStudents = ClassCard::where('subject_id', $subjectId)->with('student')->get();
+    
+    // If a section is selected, filter the students by section
+    if ($sectionId) {
+        $enrolledStudents = $enrolledStudents->filter(function ($enrollment) use ($sectionId) {
+            return $enrollment->student->section_id == $sectionId;
+        });
     }
+
+    // If a student is selected, get the specific student
+    $student = null;
+    $message = null;
+    if ($studentId) {
+        $student = Student::find($studentId);
+        if (!$student) {
+            $message = "No student found";
+        }
+    } elseif ($enrolledStudents->isNotEmpty()) {
+        // If no student is selected, choose the first enrolled student
+        $student = $enrolledStudents->first()->student;
+    }
+
+    // Fetch attendance records for the lecture and laboratory
+    $attendanceRecords = Attendance::where('subject_id', $subjectId)
+        ->where('type', 1) // 1 for lecture
+        ->where('student_id', $student ? $student->id : null)
+        ->get();
+    
+    $labAttendanceRecords = Attendance::where('subject_id', $subjectId)
+        ->where('type', 2) // 2 for laboratory
+        ->where('student_id', $student ? $student->id : null)
+        ->get();
+
+    // Get the previous and next student IDs for navigation
+    $prevStudentId = $enrolledStudents->where('student_id', '<', $studentId)->max('student_id');
+    $nextStudentId = $enrolledStudents->where('student_id', '>', $studentId)->min('student_id');
+
+    // Return the view with the necessary data
+    return view('attendance.index', compact(
+        'subjectId',
+        'subjectName',
+        'sections',
+        'enrolledStudents',
+        'student',
+        'attendanceRecords',
+        'labAttendanceRecords',
+        'message',
+        'prevStudentId',
+        'nextStudentId'
+    ));
+}
+
 
     public function showAttendance(Request $request)
     {
@@ -72,10 +99,10 @@ class AttendanceController extends Controller
     {
         // Retrieve selected period from the request
         $selectedPeriod = $request->input('periodic');
-    
+
         // Fetch attendance records based on the selected period
         $attendanceRecords = Attendance::where('period', $selectedPeriod)->get();
-    
+
         // Return data as JSON for front-end processing
         return response()->json([
             'attendanceRecords' => $attendanceRecords,
@@ -179,13 +206,13 @@ class AttendanceController extends Controller
         ]);
 
         $attendanceExists = Attendance::where('student_id', $request->student_id)
-                ->where('subject_id', $request->subject_id)
-                ->where('section_id', $request->section_id)
-                ->where('day', $request->day)
-                ->where('attendance_date', $request->attendance_date)
-                ->where('type', $request->type)
-                ->exists();
-        
+            ->where('subject_id', $request->subject_id)
+            ->where('section_id', $request->section_id)
+            ->where('day', $request->day)
+            ->where('attendance_date', $request->attendance_date)
+            ->where('type', $request->type)
+            ->exists();
+
         if ($attendanceExists) {
             return response()->json([
                 'success' => false,
@@ -230,19 +257,27 @@ class AttendanceController extends Controller
 
         // Update the subject fields
         $attendance->status = $validatedData['status'];
-        // Save changes
         $attendance->save();
 
+        // Return a success response
         return response()->json([
             'success' => true,
             'attendance' => $attendance,
-            'message' => 'Attendance updated successfully',
         ]);
-    }
 
-    public function destroyAttendanceApi(Attendance $attendance)
+    }
+    public function getStudents($sectionId, $subjectId)
     {
-        $attendance->delete();
-        return response()->json(['success' => true, 'message' => 'Attendance deleted successfully.']);
+        // Fetch students based on section and subject
+        $students = Student::whereHas('sections', function ($query) use ($sectionId) {
+            $query->where('id', $sectionId);
+        })
+        ->whereHas('subjects', function ($query) use ($subjectId) {
+            $query->where('id', $subjectId);
+        })
+        ->get();
+    
+        // Return students as JSON
+        return response()->json($students);
     }
 }

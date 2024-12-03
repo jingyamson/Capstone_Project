@@ -28,12 +28,11 @@ use PhpOffice\PhpSpreadsheet\Calculation\Financial\CashFlow\Constant\Periodic;
 use App\Http\Controllers\Auth\AdminController;
 
 /*
-|--------------------------------------------------------------------------
+|----------------------------------------------------------------------
 | Web Routes
-|--------------------------------------------------------------------------
-|
-| Here is where you can register web routes for your application. These
-| routes are loaded by the RouteServiceProvider and all of them will
+|----------------------------------------------------------------------
+| Here is where you can register web routes for your application.
+| These routes are loaded by the RouteServiceProvider and all of them will
 | be assigned to the "web" middleware group. Make something great!
 |
 */
@@ -41,13 +40,9 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
-
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [LoginController::class, 'login']);
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
-
-
-// routes/web.php
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
@@ -61,43 +56,45 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/users', [RegisterController::class, 'index'])->name('users.index');
         Route::put('/users/{user}', [RegisterController::class, 'update']);
         Route::delete('/users/{user}', [RegisterController::class, 'destroy']);
-        
-
     });
+
     Route::get('/sections', [SectionController::class, 'index'])->name('sections.index');
     Route::post('/sections', [SectionController::class, 'store'])->name('sections.store');
     Route::put('/sections/{section}', [SectionController::class, 'update'])->name('sections.update');
     Route::delete('/sections/{section}', [SectionController::class, 'destroy'])->name('sections.destroy');
-    
 
     // Subjects
     Route::get('/subjects', [SubjectController::class, 'index'])->name('subjects.index');
-    // Route::get('/subjects/create', [SubjectController::class, 'create'])->name('subjects.create');
     Route::post('/subjects', [SubjectController::class, 'store'])->name('subjects.store');
     Route::get('/subjects/enroll', [SubjectController::class, 'showEnroll'])->name('subjects.showEnroll');
     Route::post('/subjects/enroll', [SubjectController::class, 'enrollStudents'])->name('subjects.enrolls');
     Route::delete('/subjects/enroll/{enroll}', [SubjectController::class, 'unEnrollStudent'])->name('subjects.enrolls.destroy');
-    // Route::get('/subjects/{subject}/edit', [SubjectController::class, 'edit'])->name('subjects.edit');
     Route::put('/subjects/{subject}', [SubjectController::class, 'update'])->name('subjects.update');
     Route::delete('/subjects/{subject}', [SubjectController::class, 'destroy'])->name('subjects.destroy');
 
-    // Other authenticated routes...
-
+    // Students
     route::get('/students', [StudentController::class, 'index'])->name('students.index');
     route::get('students/create', [StudentController::class, 'create'])->name('students.create');
     Route::post('students/store', [StudentController::class, 'store'])->name('students.store');
     Route::put('/students/{student}', [StudentController::class, 'update'])->name('students.update');
     route::post('/students/upload-csv', [StudentController::class, 'uploadCSV'])->name('students.uploadCSV');
     Route::get('/export-student-template', [StudentController::class, 'exportStudents'])->name('students.exportStudentSheet');
-    route::post('/students/upload-excel', [StudentController::class, 'uploadExcel'])->name('students.uploadExcel'); });
+    route::post('/students/upload-excel', [StudentController::class, 'uploadExcel'])->name('students.uploadExcel');
 
     Route::delete('/students/{student}', [StudentController::class, 'destroy'])->name('students.destroy');
-    // Route::put('/shuffle', [StudentController::class, 'shuffleStudent'])->name('students.shuffle');
     Route::match(['get', 'post'], '/shuffle', [StudentController::class, 'shuffleStudent'])->name('students.shuffle');
     Route::post('/shuffle/store', [StudentController::class, 'storeRecitation'])->name('recitation.store');
     Route::match(['get', 'post'], '/group-shuffle', [StudentController::class, 'groupShuffle'])->name('students.group.shuffle');
 
-
+    // Attendance Routes
+    Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance.index');
+    Route::post('/attendance/store', [AttendanceController::class, 'store'])->name('attendance.store');
+    Route::delete('/attendance/delete', [AttendanceController::class, 'delete'])->name('attendance.delete');
+    Route::post('/update-attendance-period', [AttendanceController::class, 'updateAttendancePeriod'])->name('attendance.updateAttendancePeriod');
+    Route::get('/attendance/students/{sectionId}/{subjectId}', [AttendanceController::class, 'getStudents'])->name('attendance.getStudents');
+    Route::get('/attendance/students/{sectionId}', [AttendanceController::class, 'getStudentsForSection'])->name('attendance.getStudentsForSection');
+    
+    // Export Routes
     Route::get('export-students', function () {
         $teacherId = auth()->user()->id;
         return Excel::download(new StudentsExport($teacherId), 'students.xlsx');
@@ -117,20 +114,13 @@ Route::middleware(['auth'])->group(function () {
         $teacherId = auth()->user()->id;
         return Excel::download(new FinalsExport($teacherId, $subject_id), 'finalsGrade.xlsx');
     })->name('students.exportFinals');
-    
 
-
-    Route::get('/class-card}', [ClassCardController::class, 'index'])->name('class-card.index');
+    Route::get('/class-card', [ClassCardController::class, 'index'])->name('class-card.index');
     Route::get('/class-card/filter-students', [ClassCardController::class, 'filterStudents'])->name('class-card.filter-students');
     Route::post('/class-card/performance-task/store', [ClassCardController::class, 'performanceTaskStore'])->name('class-card.performance-task.store');
     Route::put('/class-card/performance-task/update/{score}', [ClassCardController::class, 'performanceTaskUpdate'])->name('class-card.performance-task.update');
     Route::delete('/class-card/performance-task/delete', [ClassCardController::class, 'performanceTaskBulkDelete'])->name('class-card.performance-task.bulkDelete');
-
-
-    Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance.index');
-    Route::post('/attendance/store', [AttendanceController::class, 'store'])->name('attendance.store');
-    Route::delete('/attendance/delete', [AttendanceController::class, 'delete'])->name('attendance.delete');
-
+});
 
 // Forgot Password Routes
 Route::get('change-password', [ChangePasswordController::class, 'showChangePasswordForm'])->name('password.change');
@@ -145,16 +135,10 @@ Route::post('reset-password', 'App\Http\Controllers\Auth\ResetPasswordController
 // Reset Data
 Route::get('/reset', [AuthController::class, 'resetAllData'])->name('data.reset');
 
-Route::post('/update-attendance-period', [AttendanceController::class, 'updateAttendancePeriod']);
-
-// routes/web.php
-// Route to display students in a specific section
-Route::get('/sections/{id}/students', [SectionController::class, 'showStudents'])->name('sections.students');
-
-// Add this route in routes/web.php
+// Other Routes
 Route::get('/choose-subjects', [SubjectController::class, 'chooseSubjects'])->name('subjects.choose');
 Route::post('/choose-subjects/select', [SubjectController::class, 'selectSubjects'])->name('subjects.select');
-Route::post('subjects/select', [SubjectController::class, 'selectSubjects'])->name('subjects.select');
+Route::post('/subjects/select', [SubjectController::class, 'selectSubjects'])->name('subjects.select');
 
 // Main subjects listing page
 Route::get('/subjects', [SubjectController::class, 'index'])->name('subjects.index');
@@ -162,17 +146,6 @@ Route::get('/subjects', [SubjectController::class, 'index'])->name('subjects.ind
 // Import subjects route
 Route::post('/subjects/import', [SubjectController::class, 'import'])->name('subjects.import');
 
-Route::get('/subjects', [SubjectController::class, 'index'])->name('subjects.index');
-Route::post('/subjects/import', [SubjectController::class, 'import'])->name('subjects.import');
-
-Route::post('/students/enroll', [StudentController::class, 'enroll'])->name('students.enroll');
-
-Route::get('/sections/by-year/{year}', [SectionController::class, 'getSectionsByYear']);
-
-
-Route::post('/subjects/add', [SubjectController::class, 'add'])->name('subjects.add');
-Route::post('/subjects/add-selected', [SubjectController::class, 'addSelected'])->name('subjects.addSelected');
-Route::post('/subjects/enroll', [SubjectController::class, 'enrollStudents'])->name('subjects.enrollStudents');
 // Route for deleting a subject
 Route::delete('/subjects/destroy/{id}', [SubjectController::class, 'destroy'])->name('subjects.destroy');
 Route::delete('/subjects/selected/{id}', [SubjectController::class, 'destroySelected'])->name('subjects.destroySelected');
@@ -180,3 +153,6 @@ Route::delete('/subjects/selected/{id}', [SubjectController::class, 'destroySele
 Route::get('/subjects/addsubject', [SubjectController::class, 'addSubject'])->name('subjects.addsubject');
 Route::post('/subjects/store', [SubjectController::class, 'store'])->name('subjects.store');
 Route::get('/subjects/{subject}/edit', [SubjectController::class, 'edit'])->name('subjects.edit'); 
+
+Route::get('/attendance/students/{sectionId}/{subjectId}', [AttendanceController::class, 'getStudents']);
+Route::get('/attendance/students/{sectionId}', [AttendanceController::class, 'getStudentsForSection']);
